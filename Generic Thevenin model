@@ -1,0 +1,58 @@
+clc
+clear all;
+
+%% Parâmetros da bateria Moura Clean 12mf220 
+% Limitação de corrente. 
+% Para aplicações ciclicas, recomenda-se intensidades de corrente de até
+% 20% de C10 para a recarga;
+
+% Para aplicações com recarga constante, recomenda-se o uso de uma corrente
+% máxima de 20% de C20;
+n = 6; % número de celulas na bateria;
+C20 = 220; % Capacidade nominal da bateria; 
+C10 = 200; %C10 = capacidade nominal após 10 horas de carga;
+
+%Corrente de recarga mínima;
+Ibat_min = 0.05*C20;
+% Limitação de corrente para recarga com tensão constante
+%Ibat,max = 0.2*C20; 
+
+% Limitação de corrente para aplicações cíclicas
+Ibat_max = 0.2*C10;
+
+% Determinação do estado de carga SoC:
+% Habilitar apenas um caso:
+%SoC =  1 -  Q/C;
+%SoC = 1 - (I*t)/C;
+SoC = 0.4; % menor SoC possível
+
+% Função linearizada que determina a tensão de circuito aberto em função do SoC da
+% bateria 
+Voc =  1.25*SoC + 11.75;
+% Influência da variação da temperatura na variação da resistência
+T = 25; %Temperatura do eletrólito
+deltaT = T - 25;
+
+%% Teste inicial, pior caso (I = Ibat,max, SoC = 0,4)
+I = Ibat_max;
+%% Modelagem - Descarga (I < 0)
+% Tensão interna da bateria em função do SoC
+Vg_d = (2.085 - 0.12*(1 - SoC))*n
+
+% Resistência interna da bateria em função do ponto de operação (I,SoC)
+Rsb_d = ((1/C10)*(4/(1 + I^1.3) + (0.27/(SoC^1.5)) + 0.02)*(1 - 0.007*deltaT))*n
+
+%Tensão terminal em função do SoC e da corrente; 
+Vg_dt = Vg_d + Rsb_d*(-I)
+%% Modelagem - Carga (I > 0)
+% Tensão interna da bateria em função do SoC
+Vg_c = (2.0 - 0.16*SoC)*n 
+
+% Resistência interna da bateria em função do ponto de operação (I,SoC)
+Rsb_c = ((1/C10)*(6/(1 + I^0.86) + (0.48/((1 - SoC )^1.2)) + 0.036)*(1 - 0.025*deltaT))*n
+
+%Tensão terminal em função do SoC e da corrente; 
+Vg_ct = Vg_c + Rsb_c*I
+%% Circuito RC que modela o transitório
+Rtb = (0.086*I^(-0.67)*(70.3 - 11.66*Voc + 0.49*Voc^2))*n
+Ctb = (1/(326.5*I^(-1.1)*Rtb))*n
