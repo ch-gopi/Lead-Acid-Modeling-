@@ -1,0 +1,92 @@
+clc
+clear all;
+
+% ARTIGO NAVID EGHTEDARPOUR
+%% Dados de entrada (bateria 12mf220Ah)
+% Para aplicações com recarga constante, recomenda-se o uso de uma corrente
+% máxima de 20% de C20;
+n = 6; % número de celulas na bateria;
+C20 = 220; % Capacidade nominal da bateria; 
+C10 = 200; %C10 = capacidade nominal após 10 horas de carga;
+% Determinação do estado de carga SoC:
+% Habilitar apenas um caso:
+%SoC =  1 -  Q/C;
+%SoC = 1 - (I*t)/C;
+SoC = 0.4; % menor SoC possível
+T = 25; % Temperatura do eletrólito;
+
+% Chamar a função do modelo da bateria e atribui os valores de saída como
+% sendo iguais aos valores a serem inseridos na função de transferência 
+[I,Vg_d,R_sb_d,Vg_c,R_sb_c,R_tb,C_tb] = modelo_mc12mf220(n,C20,C10,SoC,T)
+
+%% MODELO DA FUNÇÃO DE TRANSFERÊNCIA QUE RELACIONA A CORRENTE NA INDUTÂNCIA EM FUNÇÃO DO CICLO DE TRABALHO
+% Parâmetros
+V_0 = 150; % tensão do barramento CC
+L = 10e-3; % indutância do conversor CC/CC
+R_l = 0.02;% resistência intrínseca da indutância
+D_l = 0.4; % ciclo de trabalho complementar (1 - d). Para o caso do laboratório, d = 0,6
+I_l = I; % após a chamada da função
+C_0 = 4700e-6; % capacitância do barramento CC
+
+%% Definições das funções de transferência para as condições de carga e descarga
+%% Carga
+G_id0_c = 1/(V_0*C_tb*R_tb*L);
+% Numerador da função de transferência (2ª ordem)
+num_G_id_c = G_id0_c*[(R_tb*C_tb*V_0^2) (V_0^2 + D_l*I_l*C_tb*R_tb) (D_l*I_l)];
+
+%Denominador da função de transferência (3ª ordem)
+den_G_id_c = [1 (((R_sb_c + R_l)/L) + (1/(C_tb*R_tb))) (((R_sb_c + R_tb + R_l)/(C_tb*R_tb*L)) + ((D_l^2)/(C_0*L))) ((D_l)^2)];
+
+% Função de transferência para a condição de carga
+G_id_c = tf(num_G_id_c,den_G_id_c)
+
+% Determinando o ganho estático,zeros e polos da FT1 
+%               Obs.:  Formato da FT 
+%                  (s-z1)(s-z2)...(s-zn)
+%       H(s) =  K ---------------------
+%                  (s-p1)(s-p2)...(s-pn)
+[zeros1_c,polos1_c,ganho1_c] = tf2zp(num_G_id_c,den_G_id_c)
+%% Simplificando a FT - carga
+%Análise da FT simplificada desprezando os polos e os zeros distantes do polo
+%dominante (p = 0 -> integrador com ganho estático)
+%Negativo para não deixar a planta negativa
+%knovo = abs((ganho1*zeros1))/(abs((polos1(1))*abs(polos1(2)))) 
+%ft1_simp = tf(knovo,[1 abs(polos1(3))])
+%Análise comparativa da resposta ao degrau da ft normal e da ft
+%simplificada
+   % figure(1);step(ft1_I);hold on;step(ft1_simp);
+%Análise comparativa da resposta ao impulso da ft normal e da ft
+%simplificada
+    %figure(1);impulse(ft1_I); hold on;
+    %figure(2);impulse(ft1_simp);
+%% Função de transferência entre a corrente de saída do inversor e a tensão sintetizada pelo inversor (If/Vf)
+% Determinada a partir do quadripolo
+%num2_I = [L2*Cf rd*Cf 1];
+%den2_I = den1_I;
+%ft2_I = tf(num2_I,den2_I);
+%[zeros2,polos2,ganho2] = tf2zp(num2_I,den2_I);
+
+%% Descarga
+G_id0_d = 1/(V_0*C_tb*R_tb*L);
+% Numerador da função de transferência (2ª ordem)
+num_G_id_d = G_id0_d*[(R_tb*C_tb*V_0^2) (V_0^2 + D_l*I_l*C_tb*R_tb) (D_l*I_l)];
+
+%Denominador da função de transferência (3ª ordem)
+den_G_id_d = [1 (((R_sb_d + R_l)/L) + (1/(C_tb*R_tb))) (((R_sb_d + R_tb + R_l)/(C_tb*R_tb*L)) + ((D_l^2)/(C_0*L))) ((D_l)^2)];
+
+% Função de transferência para a condição de descarga
+G_id_d = tf(num_G_id_d,den_G_id_d)
+
+% Determinando o ganho estático,zeros e polos da FT1 
+%               Obs.:  Formato da FT 
+%                  (s-z1)(s-z2)...(s-zn)
+%       H(s) =  K ---------------------
+%                  (s-p1)(s-p2)...(s-pn)
+[zeros1_d,polos1_d,ganho1_d] = tf2zp(num_G_id_d,den_G_id_d)
+
+%% Plots
+figure(1); plot(1);bode(G_id_c); legend ('carga'); hold on
+           plot(2);bode(G_id_d); legend('descarga');
+           
+figure(2); plot(1); rlocus(G_id_c); legend ('carga'); hold on
+           plot(2); rlocus(G_id_d); legend('descarga');
